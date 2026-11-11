@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+    }
+    
+    /* Возвращаем аккуратный отступ от краев экрана */
+    .fab-wrapper {
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: flex-end;      
+      justify-content: flex-end;  
+      padding: 12px;               /* Отступ 12px от края */
+      box-sizing: border-box;
+      position: relative;
+    }
+    
+    .fab {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #b91c1c, #ef4444);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      padding: 0;
+      outline: none;
+      position: relative;
+      z-index: 2;
+      
+      box-shadow: 
+        0 2px 10px rgba(220, 38, 38, 0.6),
+        0 1px 3px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .fab:hover {
+      transform: scale(1.08);
+      box-shadow: 
+        0 4px 14px rgba(220, 38, 38, 0.8),
+        0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+
+    .fab:active { transform: scale(0.94); }
+
+    .fab svg {
+      width: 28px;
+      height: 28px;
+      pointer-events: none;
+      stroke-width: 3;
+    }
+
+    /* Анимация "Круги на воде" */
+    .fab::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 50%;
+      border: 2px solid #ef4444;
+      animation: ripple 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    @keyframes ripple {
+      0% {
+        transform: scale(1);
+        opacity: 0.8;
+      }
+      100% {
+        /* Масштаб 1.6 безопасен для окна 100x100 с отступом 12px */
+        transform: scale(1.6); 
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="fab-wrapper">
+    <button class="fab" id="fab" title="Контроллер домена недоступен. Нажмите, чтобы открыть папку.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="7" x2="12" y2="14"></line>
+        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    const fab = document.getElementById('fab');
+    let hovering = false;
+
+    window.api.getDcStatus().then(status => {
+      if (status && status.reason) {
+        fab.title = `${status.reason}. Нажмите, чтобы открыть папку.`;
+      }
+    });
+
+    window.api.onDcStatus((status) => {
+      if (status && status.reason) {
+        fab.title = `${status.reason}. Нажмите, чтобы открыть папку.`;
+      }
+    });
+
+    fab.addEventListener('click', () => {
+      window.api.fabClicked();
+      
+      fab.style.transform = 'scale(0.8)';
+      setTimeout(() => fab.style.transform = '', 150);
+    });
+
+    const insideButton = (x, y) => {
+      const r = fab.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    };
+
+    document.addEventListener('mousemove', (e) => {
+      const inside = insideButton(e.clientX, e.clientY);
+      if (inside !== hovering) {
+        hovering = inside;
+        window.api.setIgnoreMouse(!inside);
+      }
+    });
+
+    document.addEventListener('mouseleave', () => {
+      if (hovering) {
+        hovering = false;
+        window.api.setIgnoreMouse(true);
+      }
+    });
+  </script>
+</body>
+</html>
