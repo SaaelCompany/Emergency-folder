@@ -1,0 +1,42 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
+  height: 100vh; background: #ffffff; overflow: hidden; -webkit-font-smoothing: antialiased;
+}
+.form-container { width: 100%; height: 100vh; padding: 0 12px 12px; display: flex; flex-direction: column; }
+
+.titlebar { display: flex; align-items: center; gap: 8px; padding: 8px 0 6px; -webkit-app-region: drag; user-select: none; }
+.logo { display: flex; align-items: center; gap: 8px; flex: 1; }
+.logo-icon { width: 26px; height: 26px; background: linear-gradient(135deg, #0047BB, #0097D2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 11px; }
+.logo-text { font-size: 12px; font-weight: 700; color: #0f172a; }
+.logo-text span { background: linear-gradient(135deg, #0047BB, #0097D2); -webkit-background-clip: text; color: transparent; }
+.titlebar-controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+.titlebar-btn { width: 22px; height: 22px; border: none; background: transparent; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; padding: 0; }
+.titlebar-btn svg { width: 12px; height: 12px; }
+.titlebar-btn:hover { background: #eef2f7; }
+.titlebar-btn-close:hover { background: #fee2e2; color: #dc2626; }
+
+.user-line { margin-bottom: 6px; }
+.user-badge { display: inline-flex; align-items: center; gap: 4px; background: #eef6fc; color: #0047BB; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+.user-badge .ico { width: 10px; height: 10px; }
+
+h1 { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+.subtitle { color: #64748b; font-size: 11px; border-left: 3px solid #0097D2; padding-left: 8px; margin-bottom: 10px; }
+
+.menu-screen { flex: 1; overflow-y: auto; min-height: 0; }
+.shortcut-list { display: flex; flex-direction: column; gap: 7px; }
+.shortcut-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 11px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; cursor: pointer; text-align: left; transition: 0.2s; }
+.shortcut-item:hover { border-color: #0097D2; background: #ffffff; box-shadow: 0 0 0 3px rgba(0, 151, 210, 0.08); }
+.shortcut-icon { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e6f0fb, #d6e9fa); color: #0047BB; flex-shrink: 0; }
+.shortcut-icon svg { width: 13px; height: 13px; }
+.shortcut-text { flex: 1; }
+.shortcut-title { font-size: 12px; font-weight: 600; color: #0f172a; }
+.shortcut-sub { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+.shortcut-arrow { color: #cbd5e1; }
+.shortcut-arrow svg { width: 12px; height: 12px; }
+
+.webview-screen { flex: 1; min-height: 0; margin: 0 -12px -12px; border-top: 1px solid #e2e8f0; background: #ffffff; display: flex; flex-direction: column; }
+.portal-view { flex: 1; width: 100%; height: 100%; border: none; }
+
+.footnote { margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: center; }

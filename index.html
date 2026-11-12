@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="form-container">
+    <div class="titlebar">
+      <div class="logo">
+        <div class="logo-icon">БЗ</div>
+        <div class="logo-text">Клиника <span>«Будь Здоров»</span></div>
+      </div>
+      <div class="titlebar-controls">
+        <button class="titlebar-btn" id="backBtn" title="Назад" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </button>
+        <button class="titlebar-btn titlebar-btn-close" id="closeBtn" title="Скрыть">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="user-line">
+      <div class="user-badge" id="userBadge">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="userName">—</span>
+      </div>
+    </div>
+
+    <h1 id="mainTitle">Техническая поддержка</h1>
+    <div class="subtitle" id="subTitle">Выберите тип заявки</div>
+
+    <!-- Экран меню -->
+    <div id="menuScreen" class="menu-screen">
+      <div class="shortcut-list" id="shortcutList"></div>
+    </div>
+
+    <!-- Экран формы (Webview) -->
+    <div id="webviewScreen" class="webview-screen" style="display: none;">
+      <webview id="portalView" class="portal-view" src="about:blank"></webview>
+    </div>
+
+    <div class="footnote">* — форма откроется в Jira Service Management</div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

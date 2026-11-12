@@ -1,0 +1,18 @@
+{
+  "name": "emergency-folder",
+  "version": "2.1.0",
+  "description": "Мониторинг контроллера домена",
+  "main": "main.js",
+  "author": "Будь Здоров",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "icon": "node scripts/build-icon.js",
+    "build": "node scripts/build-icon.js && electron-builder --win msi"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.0"
+  }
+}
