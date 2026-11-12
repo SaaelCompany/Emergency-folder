@@ -1,6 +1,6 @@
 {
   "name": "emergency-folder",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Мониторинг контроллера домена",
   "main": "main.js",
   "author": "Будь Здоров",
@@ -8,41 +8,11 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win msi"
+    "icon": "node scripts/build-icon.js",
+    "build": "node scripts/build-icon.js && electron-builder --win msi"
   },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.13.0"
-  },
-  "build": {
-    "appId": "ru.bzklinika.emergencyfolder",
-    "productName": "Emergency folder",
-    "directories": { 
-      "output": "dist" 
-    },
-    "win": {
-      "icon": "icon.ico",
-      "target": [
-        {
-          "target": "msi",
-          "arch": ["x64"]
-        }
-      ]
-    },
-    "msi": {
-      "upgradeCode": "{8A3C7B5E-4F2D-4A1B-9C6E-1D2F3A4B5C6D}",
-      "oneClick": true,
-      "perMachine": true,
-      "createDesktopShortcut": false,
-      "createStartMenuShortcut": true,
-      "runAfterFinish": true,
-      "artifactName": "Emergency folder ${version}.${ext}"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "config.js",
-      "fab.html"
-    ]
   }
 }

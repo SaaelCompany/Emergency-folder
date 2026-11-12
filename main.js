@@ -1,9 +1,9 @@
 const { app, BrowserWindow, ipcMain, Tray, screen, nativeImage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const zlib = require('zlib');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const config = require('./config');
+const { makeFolderPNG } = require('./folder-icon');
 
 let fabWindow = null;
 let tray = null;
@@ -13,6 +13,7 @@ let lastDesktopOpenAt = 0;
 app.isQuitting = false;
 
 const FAB_SIZE = 100;
+const APP_USER_MODEL_ID = 'ru.bzklinika.emergencyfolder';
 const PUBLIC_DESKTOP = path.win32.join(process.env.PUBLIC || 'C:\\Users\\Public', 'Desktop');
 const COMMON_STARTUP = path.win32.join(
   process.env.PROGRAMDATA || 'C:\\ProgramData',
@@ -20,65 +21,45 @@ const COMMON_STARTUP = path.win32.join(
 );
 const SHORTCUT_NAME = 'Emergency folder.lnk';
 
-// ---- Единственный экземпляр приложения ----
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
-if (!hasSingleInstanceLock) {
-  app.exit(0);
-} else {
-  app.on('second-instance', () => {
-    console.log('[APP] Повторный запуск — открываю общий рабочий стол');
-    if (app.isReady()) openPublicDesktop();
-    else app.whenReady().then(() => openPublicDesktop());
-  });
+function isSystemContext() {
+  const session = String(process.env.SESSIONNAME || '').toLowerCase();
+  if (session === 'services') return true;
+  const user = String(process.env.USERNAME || '').toLowerCase();
+  if (user === 'system') return true;
+  const profile = String(process.env.USERPROFILE || '').toLowerCase();
+  return profile.includes('\\config\\systemprofile');
 }
 
-// ---- Генерация иконки трея ----
-function makeTrayIconPNG() {
-  const width = 32, height = 32;
-  const rowSize = 1 + width * 4;
-  const raw = Buffer.alloc(rowSize * height);
-  for (let y = 0; y < height; y++) {
-    raw[y * rowSize] = 0;
-    for (let x = 0; x < width; x++) {
-      const i = y * rowSize + 1 + x * 4;
-      const cx = width / 2, cy = height / 2;
-      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= width / 2 - 1) {
-        const t = x / width;
-        raw[i] = 0x00;
-        raw[i + 1] = Math.round(0x47 + (0x97 - 0x47) * t);
-        raw[i + 2] = Math.round(0xBB + (0xD2 - 0xBB) * t);
-        raw[i + 3] = 255;
-      } else { raw[i + 3] = 0; }
-    }
+const systemContext = isSystemContext();
+
+function logLine(tag, message) {
+  const line = `[${tag}] ${message}`;
+  console.log(line);
+  if (!systemContext) return;
+  try {
+    const dir = path.win32.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Emergency folder');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.win32.join(dir, 'launch.log'), `${new Date().toISOString()} ${line}\r\n`);
+  } catch (e) {
+    console.error('[LOG] Не удалось записать журнал:', e.message);
   }
-  const crcTable = (() => {
-    const tbl = new Uint32Array(256);
-    for (let n = 0; n < 256; n++) {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-      tbl[n] = c >>> 0;
-    }
-    return tbl;
-  })();
-  function crc32(buf) {
-    let crc = 0xFFFFFFFF;
-    for (let i = 0; i < buf.length; i++) crc = crcTable[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
-    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// В служебном сеансе блокировку не берём: иначе копия, запущенная у пользователя, сразу завершится.
+let hasSingleInstanceLock = false;
+if (!systemContext) {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
+  hasSingleInstanceLock = app.requestSingleInstanceLock();
+  if (!hasSingleInstanceLock) {
+    app.exit(0);
+  } else {
+    app.on('second-instance', (_event, commandLine) => {
+      if ((commandLine || []).some(arg => arg === '--background')) return;
+      logLine('APP', 'Повторный запуск — открываю общий рабочий стол');
+      if (app.isReady()) openPublicDesktop();
+      else app.whenReady().then(() => openPublicDesktop());
+    });
   }
-  function chunk(type, data) {
-    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-    const t = Buffer.from(type, 'ascii');
-    const c = Buffer.alloc(4); c.writeUInt32BE(crc32(Buffer.concat([t, data])));
-    return Buffer.concat([len, t, data, c]);
-  }
-  const sig = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 6;
-  const idat = zlib.deflateSync(raw);
-  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0))]);
 }
 
 // ---- Позиция в правом нижнем углу ----
@@ -134,48 +115,136 @@ function scheduleNextCheck() {
   }, delay);
 }
 
-// ---- НАСТРОЙКА АВТОЗАГРУЗКИ ----
-function setupAutostart() {
-  const exePath = process.execPath;
-  const workDir = path.dirname(exePath);
-  const lnkPath = path.join(COMMON_STARTUP, SHORTCUT_NAME);
+function powershellPath() {
+  const full = path.win32.join(
+    process.env.SystemRoot || 'C:\\Windows',
+    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'
+  );
+  return fs.existsSync(full) ? full : 'powershell.exe';
+}
 
-  // 1. Если ярлык уже в общей автозагрузке — выходим
-  if (fs.existsSync(lnkPath)) {
-    console.log('[AUTOSTART] ✅ Ярлык уже в общей автозагрузке:', lnkPath);
+function shortcutMatches(lnkPath, exePath) {
+  if (!fs.existsSync(lnkPath) || typeof shell.readShortcutLink !== 'function') return false;
+  try {
+    const link = shell.readShortcutLink(lnkPath);
+    const target = path.win32.normalize(link.target || '').replace(/\\+$/, '').toLowerCase();
+    return target === path.win32.normalize(exePath).replace(/\\+$/, '').toLowerCase();
+  } catch (e) {
+    return false;
+  }
+}
+
+function writeShortcutWithShell(lnkPath, exePath) {
+  if (typeof shell.writeShortcutLink !== 'function') return false;
+  const operation = fs.existsSync(lnkPath) ? 'replace' : 'create';
+  return shell.writeShortcutLink(lnkPath, operation, {
+    target: exePath,
+    cwd: path.win32.dirname(exePath),
+    description: 'Emergency folder — общий рабочий стол',
+    icon: exePath,
+    iconIndex: 0
+  }) && fs.existsSync(lnkPath);
+}
+
+function writeShortcutWithPowerShell(lnkPath, exePath) {
+  if (process.platform !== 'win32') return false;
+  const quote = (value) => String(value).replace(/'/g, "''");
+  const script = [
+    '$shell = New-Object -ComObject WScript.Shell',
+    `$shortcut = $shell.CreateShortcut('${quote(lnkPath)}')`,
+    `$shortcut.TargetPath = '${quote(exePath)}'`,
+    `$shortcut.WorkingDirectory = '${quote(path.win32.dirname(exePath))}'`,
+    "$shortcut.Description = 'Emergency folder'",
+    `$shortcut.IconLocation = '${quote(exePath)},0'`,
+    '$shortcut.Save()'
+  ].join('; ');
+  try {
+    execFileSync(powershellPath(), [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script
+    ], { timeout: 15000, windowsHide: true });
+    return fs.existsSync(lnkPath);
+  } catch (e) {
+    logLine('AUTOSTART', 'PowerShell не записал ярлык: ' + e.message);
+    return false;
+  }
+}
+
+// Ярлык в общей автозагрузке. MSI создаёт его сам; здесь запасной путь,
+// если программу запустили без установщика или ярлык указывает на старый файл.
+function ensureAutostart() {
+  const exePath = process.execPath;
+  const lnkPath = path.win32.join(COMMON_STARTUP, SHORTCUT_NAME);
+  if (shortcutMatches(lnkPath, exePath)) {
+    logLine('AUTOSTART', 'Ярлык уже в общей автозагрузке');
     return;
   }
-
-  // 2. Пытаемся создать ярлык в общей папке (нужны права администратора)
+  if (fs.existsSync(lnkPath)) {
+    // Не добавляем вторую автозагрузку в HKCU: ярлык установщика уже запускает программу.
+    try {
+      if (writeShortcutWithShell(lnkPath, exePath) || writeShortcutWithPowerShell(lnkPath, exePath)) {
+        logLine('AUTOSTART', 'Ярлык общей автозагрузки обновлён');
+        return;
+      }
+    } catch (e) {
+      logLine('AUTOSTART', 'Не удалось обновить ярлык: ' + e.message);
+    }
+    logLine('AUTOSTART', 'Ярлык общей автозагрузки уже существует');
+    return;
+  }
   try {
-    const created = shell.writeShortcutLink(lnkPath, 'create', {
-      target: exePath,
-      cwd: workDir,
-      description: 'Emergency folder — мониторинг контроллера домена',
-      icon: exePath,
-      iconIndex: 0
-    });
-
-    if (created && fs.existsSync(lnkPath)) {
-      console.log('[AUTOSTART] ✅ Ярлык создан в общей автозагрузке:', lnkPath);
+    if (writeShortcutWithShell(lnkPath, exePath)) {
+      logLine('AUTOSTART', 'Ярлык записан в общую автозагрузку: ' + lnkPath);
       return;
     }
-    throw new Error('writeShortcutLink не смог создать ярлык');
   } catch (e) {
-    console.warn('[AUTOSTART] ⚠️ Нет прав на запись в общую автозагрузку:', e.message);
+    logLine('AUTOSTART', 'Нет прав на запись ярлыка: ' + e.message);
   }
-
-  // 3. Fallback: пользовательская автозагрузка через HKCU
+  if (writeShortcutWithPowerShell(lnkPath, exePath)) {
+    logLine('AUTOSTART', 'Ярлык записан через PowerShell: ' + lnkPath);
+    return;
+  }
+  if (systemContext) {
+    logLine('AUTOSTART', 'Общая автозагрузка не записана из служебного сеанса');
+    return;
+  }
   try {
     app.setLoginItemSettings({
       openAtLogin: true,
       path: exePath,
       args: []
     });
-    console.log('[AUTOSTART] ⚠️ Использую пользовательскую автозагрузку (HKCU\\...\\Run)');
+    logLine('AUTOSTART', 'Включена автозагрузка текущего пользователя');
   } catch (e) {
-    console.error('[AUTOSTART] ❌ Не удалось настроить автозагрузку:', e.message);
+    logLine('AUTOSTART', 'Не удалось настроить автозагрузку: ' + e.message);
   }
+}
+
+function launchInActiveUserSessions(exePath) {
+  if (process.platform !== 'win32') {
+    logLine('SCCM', 'Запуск в сессии пользователя доступен только в Windows');
+    return Promise.resolve();
+  }
+  const scriptPath = path.join(__dirname, 'launch-user.ps1');
+  return new Promise((resolve) => {
+    execFile(powershellPath(), [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', scriptPath, '-ExePath', exePath
+    ], { timeout: 60000, windowsHide: true }, (err, stdout, stderr) => {
+      const output = String(stdout || '').trim();
+      if (output) logLine('SCCM', output);
+      if (err) logLine('SCCM', 'Не удалось запустить сессию пользователя: ' + (stderr || err.message));
+      else if (!output) logLine('SCCM', 'Скрипт запуска не вернул результат');
+      resolve();
+    });
+  });
+}
+
+async function runSystemContext() {
+  logLine('SCCM', 'Служебный сеанс. Настраиваю автозагрузку и запускаю программу у вошедшего пользователя.');
+  ensureAutostart();
+  await launchInActiveUserSessions(process.execPath);
+  app.isQuitting = true;
+  app.exit(0);
 }
 
 // ---- Окно ----
@@ -204,7 +273,7 @@ async function openPublicDesktop() {
   const now = Date.now();
   if (now - lastDesktopOpenAt < 800) return;
   lastDesktopOpenAt = now;
-  console.log('[DESKTOP] Открываю', PUBLIC_DESKTOP);
+  logLine('DESKTOP', 'Открываю ' + PUBLIC_DESKTOP);
   try {
     const err = await shell.openPath(PUBLIC_DESKTOP);
     if (err) console.error('Не удалось открыть папку:', err);
@@ -214,10 +283,11 @@ async function openPublicDesktop() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromBuffer(makeTrayIconPNG());
+  const icon = nativeImage.createFromBuffer(makeFolderPNG(32));
+  if (icon.isEmpty()) throw new Error('Пустая иконка трея');
   tray = new Tray(icon);
   tray.setToolTip('Открыть общий рабочий стол');
-  console.log('[TRAY] Клик по иконке открывает', PUBLIC_DESKTOP);
+  logLine('TRAY', 'Клик по иконке открывает ' + PUBLIC_DESKTOP);
   const onTrayActivate = () => openPublicDesktop();
   tray.on('click', onTrayActivate);
   tray.on('right-click', onTrayActivate);
@@ -225,26 +295,16 @@ function createTray() {
 }
 
 // ---- Старт ----
-if (hasSingleInstanceLock) app.whenReady().then(() => {
-  // === ОБРАБОТКА ЗАПУСКА ИЗ SCCM (SESSION 0) ===
-  const isSessionZero = process.env.SESSIONNAME && process.env.SESSIONNAME.toLowerCase() === 'services';
-  
-  if (isSessionZero) {
-    console.log('[SCCM] Запущено в служебной сессии (SYSTEM). Настраиваем автозагрузку и выходим...');
-    setupAutostart();
-    // Даем 5 секунд на запись файлов, после чего закрываем процесс
-    setTimeout(() => {
-      app.isQuitting = true;
-      app.quit();
-    }, 5000);
-    return; // Не создаем окна и трей
+if (systemContext || hasSingleInstanceLock) app.whenReady().then(() => {
+  if (systemContext) {
+    runSystemContext();
+    return;
   }
 
-  // === ОБЫЧНЫЙ ЗАПУСК (ПОЛЬЗОВАТЕЛЬ) ===
-  setupAutostart();
+  ensureAutostart();
   createFabWindow();
   createTray();
-  
+
   updateDcStatus().then(scheduleNextCheck);
 
   screen.on('display-metrics-changed', () => {
