@@ -10,17 +10,55 @@ function sdRoundBox(px, py, left, top, right, bottom, radius) {
   return Math.min(Math.max(dx, dy), 0) + Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) - radius;
 }
 
-function cover(dist) {
-  return Math.max(0, Math.min(1, 0.5 - dist / 0.01));
+function cover(dist, softness) {
+  const edge = softness == null ? 0.008 : softness;
+  return Math.max(0, Math.min(1, 0.5 - dist / edge));
 }
 
-// Цвет папки в нормализованных координатах (0..1, y сверху вниз), RGBA 0..1.
+function sdPolygon(px, py, verts) {
+  const count = verts.length;
+  let closest = Infinity;
+  let winding = 1;
+  for (let i = 0, j = count - 1; i < count; j = i++) {
+    const ix = verts[i][0];
+    const iy = verts[i][1];
+    const jx = verts[j][0];
+    const jy = verts[j][1];
+    const ex = jx - ix;
+    const ey = jy - iy;
+    const wx = px - ix;
+    const wy = py - iy;
+    const lengthSq = ex * ex + ey * ey || 1;
+    const t = Math.max(0, Math.min(1, (wx * ex + wy * ey) / lengthSq));
+    const bx = wx - ex * t;
+    const by = wy - ey * t;
+    closest = Math.min(closest, bx * bx + by * by);
+    const crosses = (iy > py) !== (jy > py);
+    const xAtY = ex * (py - iy) / (ey || 1e-9) + ix;
+    if (crosses && px < xAtY) winding = -winding;
+  }
+  return winding * Math.sqrt(closest);
+}
+
+function lerp(from, to, t) {
+  return from + (to - from) * t;
+}
+
+// Папка Windows 11: скошенный язычок, мягкая тень, светлая передняя створка.
 function folderSample(x, y) {
-  const tab = sdRoundBox(x, y, 0.14, 0.16, 0.52, 0.40, 0.055);
-  const body = sdRoundBox(x, y, 0.10, 0.30, 0.90, 0.86, 0.075);
-  const front = sdRoundBox(x, y, 0.10, 0.44, 0.90, 0.86, 0.075);
-  const shape = Math.min(tab, body);
-  const highlight = sdRoundBox(x, y, 0.18, 0.50, 0.82, 0.60, 0.04);
+  const tab = sdRoundBox(x, y, 0.13, 0.175, 0.44, 0.42, 0.055);
+  const slope = sdPolygon(x, y, [
+    [0.36, 0.175],
+    [0.62, 0.355],
+    [0.32, 0.42]
+  ]);
+  const back = sdRoundBox(x, y, 0.12, 0.335, 0.88, 0.845, 0.078);
+  const front = sdRoundBox(x, y, 0.12, 0.43, 0.88, 0.845, 0.078);
+  const rear = Math.min(tab, slope, back);
+  const shadow = Math.min(
+    sdRoundBox(x - 0.012, y - 0.03, 0.13, 0.20, 0.50, 0.42, 0.06),
+    sdRoundBox(x - 0.012, y - 0.03, 0.12, 0.36, 0.88, 0.86, 0.09)
+  );
 
   let r = 0;
   let g = 0;
@@ -38,14 +76,21 @@ function folderSample(x, y) {
     a = outA;
   }
 
-  over(0.42, 0.26, 0.06, cover(shape - 0.012) * 0.9);
-  over(0.45, 0.28, 0.08, cover(shape + 0.02) * 0.22);
-  over(0.86, 0.55, 0.10, cover(tab));
-  over(0.95, 0.70, 0.16, cover(body));
-  over(1.0, 0.82, 0.30, cover(front));
-  over(1.0, 0.94, 0.66, cover(highlight) * cover(front) * 0.7);
-  if (cover(front) > 0 && y > 0.70) {
-    over(0.72, 0.46, 0.08, Math.min(1, (y - 0.70) / 0.16) * 0.22 * cover(front));
+  const shadowCover = cover(shadow, 0.07);
+  over(0.62, 0.42, 0.12, shadowCover * shadowCover * 0.2);
+
+  const rearCover = cover(rear);
+  const rearT = Math.max(0, Math.min(1, (y - 0.17) / 0.24));
+  over(0.99, lerp(0.72, 0.80, rearT), lerp(0.22, 0.32, rearT), rearCover);
+
+  const frontCover = cover(front);
+  const frontT = Math.max(0, Math.min(1, (y - 0.43) / 0.415));
+  over(1, lerp(0.86, 0.76, frontT), lerp(0.42, 0.24, frontT), frontCover);
+
+  const sheen = Math.max(0, 1 - (y - 0.45) / 0.04);
+  over(1, 0.97, 0.78, sheen * frontCover * 0.38);
+  if (frontT > 0.78) {
+    over(0.95, 0.62, 0.16, ((frontT - 0.78) / 0.22) * frontCover * 0.16);
   }
   return [r, g, b, a];
 }
