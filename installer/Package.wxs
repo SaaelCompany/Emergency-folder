@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+      Id="*"
+      Name="Emergency folder"
+      UpgradeCode="8A3C7B5E-4F2D-4A1B-9C6E-1D2F3A4B5C6D"
+      Version="2.1.0.0"
+      Language="1033"
+      Codepage="1251"
+      Manufacturer="Будь Здоров">
+
+    <Package Compressed="yes" InstallerVersion="500" InstallScope="perMachine" />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="DISABLEADVTSHORTCUTS" Value="1" />
+
+    <CustomAction
+        Id="CloseEmergencyFolder"
+        ExeCommand="[System64Folder]taskkill.exe /F /T /IM &quot;Emergency folder.exe&quot;"
+        Execute="immediate"
+        Return="ignore" />
+    <CustomAction
+        Id="RunAfterFinish"
+        FileKey="MainExe"
+        ExeCommand=""
+        Execute="immediate"
+        Impersonate="yes"
+        Return="asyncNoWait" />
+    <InstallExecuteSequence>
+      <Custom Action="CloseEmergencyFolder" Before="InstallFiles">1</Custom>
+      <Custom Action="RunAfterFinish" After="InstallFinalize">NOT Installed</Custom>
+    </InstallExecuteSequence>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Emergency folder">
+          <Component Id="MainExecutable" Guid="7f3c1a2e-6b54-4d8a-9e21-0c5b8a7d4f31">
+            <File
+                Id="MainExe"
+                Name="Emergency folder.exe"
+                Source="$(var.ExePath)"
+                KeyPath="yes">
+              <Shortcut
+                  Id="StartMenuShortcut"
+                  Directory="ProgramMenuFolder"
+                  Name="Emergency folder"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon"
+                  Advertise="yes" />
+              <Shortcut
+                  Id="AutostartShortcut"
+                  Directory="StartupFolder"
+                  Name="Emergency folder"
+                  Description="Общий рабочий стол"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon"
+                  Advertise="yes" />
+            </File>
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="StartupFolder" />
+      <Directory Id="System64Folder" />
+    </Directory>
+
+    <Feature Id="Main" Title="Emergency folder" Absent="disallow">
+      <ComponentRef Id="MainExecutable" />
+    </Feature>
+  </Product>
+</Wix>
