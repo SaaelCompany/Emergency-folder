@@ -6,7 +6,7 @@
       UpgradeCode="8A3C7B5E-4F2D-4A1B-9C6E-1D2F3A4B5C6D"
       Version="2.1.0.0"
       Language="1033"
-      Codepage="65001"
+      Codepage="1251"
       Manufacturer="Будь Здоров">
 
     <Package Compressed="yes" InstallerVersion="500" InstallScope="perMachine" />

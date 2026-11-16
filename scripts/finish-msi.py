@@ -6,6 +6,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+# 1251 — кодовая страница Windows для кириллицы. 65001 Windows Installer
+# в заголовке пакета не принимает: пакет тогда не открывается.
+CODEPAGE = 1251
 MANUFACTURER = "Будь Здоров"
 DESCRIPTION = "Общий рабочий стол"
 
@@ -21,7 +24,7 @@ def export(msi: Path, table: str) -> bytes:
 def main() -> None:
     msi = Path(sys.argv[1])
     with tempfile.NamedTemporaryFile(suffix=".idt") as handle:
-        handle.write(b"\r\n\r\n65001\t_ForceCodepage\r\n")
+        handle.write(f"\r\n\r\n{CODEPAGE}\t_ForceCodepage\r\n".encode("ascii"))
         handle.flush()
         run(msi, "-i", handle.name)
 
@@ -52,9 +55,9 @@ def main() -> None:
     sequence = export(msi, "InstallExecuteSequence")
     if b"CloseEmergencyFolder\t98\tSystem64Folder\t" not in custom:
         raise SystemExit("В MSI нет действия закрытия программы")
-    if MANUFACTURER.encode() not in props:
+    if MANUFACTURER.encode("cp1251") not in props and MANUFACTURER.encode() not in props:
         raise SystemExit("В MSI не сохранился издатель")
-    if DESCRIPTION.encode() not in shortcuts:
+    if DESCRIPTION.encode("cp1251") not in shortcuts and DESCRIPTION.encode() not in shortcuts:
         raise SystemExit("В MSI не сохранилось описание ярлыка автозагрузки")
     if b"RunAfterFinish\tNOT Installed\t6601" not in sequence.replace(b"\r", b""):
         raise SystemExit("Тихий запуск после установки не попал в последовательность")
